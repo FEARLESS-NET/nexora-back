@@ -1,6 +1,9 @@
 import mongoose from "mongoose";
 
 import Message from "../models/Message.js";
+import Notification from "../models/Notification.js";
+
+import User from "../models/User.js";
 
 import { getIO } from "../config/socket.js";
 
@@ -27,6 +30,7 @@ export const sendMessage = async (req, res) => {
     console.log("Sender:", req.user?.userId);
     console.log("Receiver:", receiverId);
     console.log("Content:", content);
+
     console.log(
       "File:",
       req.file
@@ -55,13 +59,53 @@ export const sendMessage = async (req, res) => {
 
     if (
       !receiverId ||
-      !mongoose.Types.ObjectId.isValid(
-        receiverId
-      )
+      !mongoose.Types.ObjectId.isValid(receiverId)
     ) {
       return res.status(400).json({
         success: false,
         message: "Valid receiver is required",
+      });
+    }
+
+    // ======================================
+    // PREVENT SELF MESSAGE
+    // ======================================
+
+    if (
+      receiverId.toString() ===
+      req.user.userId.toString()
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "You cannot send a message to yourself",
+      });
+    }
+
+    // ======================================
+    // VERIFY RECEIVER EXISTS
+    // ======================================
+
+    const receiver = await User.findById(receiverId);
+
+    if (!receiver) {
+      return res.status(404).json({
+        success: false,
+        message: "Receiver not found",
+      });
+    }
+
+    // ======================================
+    // GET SENDER
+    // ======================================
+
+    const sender = await User.findById(
+      req.user.userId
+    );
+
+    if (!sender) {
+      return res.status(404).json({
+        success: false,
+        message: "Sender not found",
       });
     }
 
@@ -92,9 +136,7 @@ export const sendMessage = async (req, res) => {
         );
 
       imageUrl = uploaded.url;
-
-      imageDeleteUrl =
-        uploaded.deleteUrl;
+      imageDeleteUrl = uploaded.deleteUrl;
 
       console.log(
         "✅ ImgBB uploaded:",
@@ -112,8 +154,7 @@ export const sendMessage = async (req, res) => {
     ) {
       return res.status(400).json({
         success: false,
-        message:
-          "Message cannot be empty",
+        message: "Message cannot be empty",
       });
     }
 
@@ -143,6 +184,41 @@ export const sendMessage = async (req, res) => {
     );
 
     // ======================================
+    // CREATE NOTIFICATION
+    // ======================================
+
+    try {
+      await Notification.create({
+        type: "new_message",
+
+        title: "New message",
+
+        content: `${sender.name} sent you a new message.`,
+
+        recipient: receiverId,
+
+        sender: req.user.userId,
+
+        relatedMessage: message._id,
+
+        proposal:
+          proposalId || null,
+      });
+
+      console.log(
+        "🔔 Message notification created"
+      );
+    } catch (notificationError) {
+      // Notification xatosi message yuborilishini
+      // to'xtatmasligi kerak.
+
+      console.error(
+        "❌ Message notification error:",
+        notificationError
+      );
+    }
+
+    // ======================================
     // POPULATE
     // ======================================
 
@@ -166,7 +242,10 @@ export const sendMessage = async (req, res) => {
     try {
       const io = getIO();
 
-      // Send to receiver
+      // ====================================
+      // SEND TO RECEIVER
+      // ====================================
+
       io.to(
         `user:${receiverId}`
       ).emit(
@@ -174,7 +253,10 @@ export const sendMessage = async (req, res) => {
         populatedMessage
       );
 
-      // Send back to sender
+      // ====================================
+      // SEND BACK TO SENDER
+      // ====================================
+
       io.to(
         `user:${req.user.userId}`
       ).emit(
@@ -281,7 +363,7 @@ export const getConversation = async (
         });
 
     // ======================================
-    // MARK AS READ
+    // MARK RECEIVED MESSAGES AS READ
     // ======================================
 
     await Message.updateMany(

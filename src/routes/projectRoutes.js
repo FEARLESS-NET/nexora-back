@@ -8,6 +8,8 @@ import {
   deleteProject,
 } from "../controllers/projectController.js";
 
+import Project from "../models/projectModel.js";
+
 import { protect } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
@@ -33,44 +35,88 @@ router.get(
 );
 
 // ==========================================
-// GET ALL PROJECTS (PUBLIC)
+// GET ALL PROJECTS - PUBLIC
 // ==========================================
 
 router.get(
   "/all",
   async (req, res) => {
     try {
-      const Project = (await import("../models/projectModel.js")).default;
-
       const projects = await Project.find()
-        .populate("owner", "name username avatar")
+        .populate("owner", "name username avatar role")
         .sort({ createdAt: -1 });
-
-      // ==========================================
-      // TRANSFORM PROJECTS
-      // ==========================================
 
       const transformedProjects = projects.map((project) => {
         const projectData = project.toObject();
 
+        const owner = project.owner;
+
         return {
           ...projectData,
 
-          // Owner information
-          developerName: project.owner?.name || null,
-          developerUsername: project.owner?.username || null,
-          developerAvatar: project.owner?.avatar || null,
+          // ==========================================
+          // OWNER INFORMATION
+          // ==========================================
+
+          ownerId: owner?._id || null,
+          ownerRole: owner?.role || null,
+
+          // Developer
+          developerId:
+            owner?.role === "developer"
+              ? owner._id
+              : null,
+
+          developerName:
+            owner?.role === "developer"
+              ? owner.name
+              : null,
+
+          developerUsername:
+            owner?.role === "developer"
+              ? owner.username
+              : null,
+
+          developerAvatar:
+            owner?.role === "developer"
+              ? owner.avatar
+              : null,
+
+          // Company
+          companyId:
+            owner?.role === "company"
+              ? owner._id
+              : null,
+
+          companyName:
+            owner?.role === "company"
+              ? owner.name
+              : null,
+
+          companyUsername:
+            owner?.role === "company"
+              ? owner.username
+              : null,
+
+          companyAvatar:
+            owner?.role === "company"
+              ? owner.avatar
+              : null,
         };
       });
 
-      res.json({
+      return res.status(200).json({
         success: true,
+        count: transformedProjects.length,
         projects: transformedProjects,
       });
     } catch (error) {
-      console.error("Error fetching all projects:", error);
+      console.error(
+        "❌ Error fetching all projects:",
+        error
+      );
 
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         message: "Error fetching projects",
       });
