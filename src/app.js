@@ -18,15 +18,28 @@ const app = express();
 // ==========================================
 // CORS
 // ==========================================
+// Allowed origins = CORS_ORIGINS env var (comma-separated)
+// plus localhost development defaults.
+
+const DEFAULT_ORIGINS = [
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "http://localhost:5175",
+  "http://localhost:3000",
+];
+
+const getCorsOrigins = () => {
+  const envOrigins = (process.env.CORS_ORIGINS || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  return [...new Set([...DEFAULT_ORIGINS, ...envOrigins])];
+};
 
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-      "http://localhost:5174",
-      "http://localhost:5175",
-      "http://localhost:3000",
-    ],
+    origin: getCorsOrigins(),
     credentials: true,
   })
 );

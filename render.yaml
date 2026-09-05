@@ -1,0 +1,26 @@
+# ==========================================
+# Render deployment config — Backend API
+# ==========================================
+# Deploy this repo on Render as a Web Service.
+# After creating the service, set the following
+# environment variables in the Render dashboard:
+#   MONGODB_URI, JWT_SECRET, IMGBB_API_KEY, CORS_ORIGINS
+
+services:
+  - type: web
+    name: nexora-back
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: IMGBB_API_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false

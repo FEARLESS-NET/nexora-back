@@ -10,10 +10,26 @@ export const initSocket = (
     httpServer,
     {
       cors: {
-        origin: [
-          "http://localhost:5173",
-          "http://localhost:5174",
-        ],
+        origin: (() => {
+          const defaults = [
+            "http://localhost:5173",
+            "http://localhost:5174",
+            "http://localhost:5175",
+            "http://localhost:3000",
+          ];
+
+          const envOrigins = (process.env.CORS_ORIGINS || "")
+            .split(",")
+            .map((origin) => origin.trim())
+            .filter(Boolean);
+
+          return [
+            ...new Set([
+              ...defaults,
+              ...envOrigins,
+            ]),
+          ];
+        })(),
         credentials: true,
       },
 
