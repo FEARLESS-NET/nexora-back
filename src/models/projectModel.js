@@ -49,19 +49,25 @@ const projectSchema = new mongoose.Schema(
       required: true,
     },
 
-    // ❤️ PROJECT LIKES
-    likedBy: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-      },
-    ],
+    // ❤️ USERLAR LIKE QILGANLAR
+    likedBy: {
+      type: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+      ],
+      default: [],
+    },
   },
   {
     timestamps: true,
   }
 );
 
-const Project = mongoose.model("Project", projectSchema);
+const Project = mongoose.model(
+  "Project",
+  projectSchema
+);
 
 export default Project;

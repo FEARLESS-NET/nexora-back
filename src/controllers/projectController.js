@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+
 import Project from "../models/projectModel.js";
 import Comment from "../models/Comment.js";
 
@@ -6,9 +7,10 @@ import {
   generateProjectPreview,
 } from "../services/projectPreviewService.js";
 
-// ==========================================
+// ======================================================
 // CREATE PROJECT
-// ==========================================
+// POST /api/projects
+// ======================================================
 
 export const createProject = async (req, res) => {
   try {
@@ -24,7 +26,8 @@ export const createProject = async (req, res) => {
     if (!title || !description) {
       return res.status(400).json({
         success: false,
-        message: "Title and description are required",
+        message:
+          "Title and description are required",
       });
     }
 
@@ -37,20 +40,23 @@ export const createProject = async (req, res) => {
         ? tech
         : [],
 
-      status: status || "In Progress",
+      status:
+        status || "In Progress",
 
-      githubUrl: githubUrl?.trim() || "",
+      githubUrl:
+        githubUrl?.trim() || "",
 
-      liveUrl: liveUrl?.trim() || "",
+      liveUrl:
+        liveUrl?.trim() || "",
 
       owner: req.user.userId,
 
       likedBy: [],
     });
 
-    // ==========================================
+    // ==================================================
     // GENERATE PREVIEW
-    // ==========================================
+    // ==================================================
 
     if (liveUrl?.trim()) {
       try {
@@ -67,7 +73,7 @@ export const createProject = async (req, res) => {
         }
       } catch (previewError) {
         console.error(
-          "Project preview error:",
+          "Preview generation error:",
           previewError
         );
       }
@@ -75,7 +81,8 @@ export const createProject = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: "Project created successfully",
+      message:
+        "Project created successfully",
       project,
     });
   } catch (error) {
@@ -91,9 +98,10 @@ export const createProject = async (req, res) => {
   }
 };
 
-// ==========================================
+// ======================================================
 // GET MY PROJECTS
-// ==========================================
+// GET /api/projects
+// ======================================================
 
 export const getMyProjects = async (
   req,
@@ -103,9 +111,10 @@ export const getMyProjects = async (
     const projects =
       await Project.find({
         owner: req.user.userId,
-      }).sort({
-        createdAt: -1,
-      });
+      })
+        .sort({
+          createdAt: -1,
+        });
 
     return res.status(200).json({
       success: true,
@@ -113,7 +122,7 @@ export const getMyProjects = async (
     });
   } catch (error) {
     console.error(
-      "Get projects error:",
+      "Get my projects error:",
       error
     );
 
@@ -124,9 +133,10 @@ export const getMyProjects = async (
   }
 };
 
-// ==========================================
+// ======================================================
 // GET SINGLE PROJECT
-// ==========================================
+// GET /api/projects/:id
+// ======================================================
 
 export const getProject = async (
   req,
@@ -138,16 +148,20 @@ export const getProject = async (
     if (!id) {
       return res.status(400).json({
         success: false,
-        message: "Project ID is required",
+        message:
+          "Project ID is required",
       });
     }
 
     if (
-      !mongoose.Types.ObjectId.isValid(id)
+      !mongoose.Types.ObjectId.isValid(
+        id
+      )
     ) {
       return res.status(400).json({
         success: false,
-        message: "Invalid project ID",
+        message:
+          "Invalid project ID",
       });
     }
 
@@ -160,7 +174,8 @@ export const getProject = async (
     if (!project) {
       return res.status(404).json({
         success: false,
-        message: "Project not found",
+        message:
+          "Project not found",
       });
     }
 
@@ -181,9 +196,10 @@ export const getProject = async (
   }
 };
 
-// ==========================================
+// ======================================================
 // UPDATE PROJECT
-// ==========================================
+// PUT /api/projects/:id
+// ======================================================
 
 export const updateProject = async (
   req,
@@ -195,16 +211,20 @@ export const updateProject = async (
     if (!id) {
       return res.status(400).json({
         success: false,
-        message: "Project ID is required",
+        message:
+          "Project ID is required",
       });
     }
 
     if (
-      !mongoose.Types.ObjectId.isValid(id)
+      !mongoose.Types.ObjectId.isValid(
+        id
+      )
     ) {
       return res.status(400).json({
         success: false,
-        message: "Invalid project ID",
+        message:
+          "Invalid project ID",
       });
     }
 
@@ -226,12 +246,14 @@ export const updateProject = async (
     if (!project) {
       return res.status(404).json({
         success: false,
-        message: "Project not found",
+        message:
+          "Project not found",
       });
     }
 
     if (title !== undefined) {
-      project.title = title.trim();
+      project.title =
+        title.trim();
     }
 
     if (description !== undefined) {
@@ -247,7 +269,8 @@ export const updateProject = async (
     }
 
     if (status !== undefined) {
-      project.status = status;
+      project.status =
+        status;
     }
 
     if (githubUrl !== undefined) {
@@ -255,9 +278,9 @@ export const updateProject = async (
         githubUrl.trim();
     }
 
-    // ==========================================
+    // ==================================================
     // LIVE URL
-    // ==========================================
+    // ==================================================
 
     if (liveUrl !== undefined) {
       const oldLiveUrl =
@@ -300,7 +323,8 @@ export const updateProject = async (
 
     return res.status(200).json({
       success: true,
-      message: "Project updated successfully",
+      message:
+        "Project updated successfully",
       project,
     });
   } catch (error) {
@@ -316,9 +340,10 @@ export const updateProject = async (
   }
 };
 
-// ==========================================
+// ======================================================
 // DELETE PROJECT
-// ==========================================
+// DELETE /api/projects/:id
+// ======================================================
 
 export const deleteProject = async (
   req,
@@ -330,16 +355,20 @@ export const deleteProject = async (
     if (!id) {
       return res.status(400).json({
         success: false,
-        message: "Project ID is required",
+        message:
+          "Project ID is required",
       });
     }
 
     if (
-      !mongoose.Types.ObjectId.isValid(id)
+      !mongoose.Types.ObjectId.isValid(
+        id
+      )
     ) {
       return res.status(400).json({
         success: false,
-        message: "Invalid project ID",
+        message:
+          "Invalid project ID",
       });
     }
 
@@ -352,19 +381,20 @@ export const deleteProject = async (
     if (!project) {
       return res.status(404).json({
         success: false,
-        message: "Project not found",
+        message:
+          "Project not found",
       });
     }
 
-    // Project o'chirilsa unga tegishli
-    // commentlar ham o'chadi
+    // Project bilan bog'liq commentlarni o'chirish
     await Comment.deleteMany({
       project: id,
     });
 
     return res.status(200).json({
       success: true,
-      message: "Project deleted successfully",
+      message:
+        "Project deleted successfully",
     });
   } catch (error) {
     console.error(
@@ -390,14 +420,19 @@ export const likeProject = async (
 ) => {
   try {
     const { id } = req.params;
-    const userId = req.user.userId;
+
+    const userId =
+      req.user.userId;
 
     if (
-      !mongoose.Types.ObjectId.isValid(id)
+      !mongoose.Types.ObjectId.isValid(
+        id
+      )
     ) {
       return res.status(400).json({
         success: false,
-        message: "Invalid project ID",
+        message:
+          "Invalid project ID",
       });
     }
 
@@ -407,8 +442,15 @@ export const likeProject = async (
     if (!project) {
       return res.status(404).json({
         success: false,
-        message: "Project not found",
+        message:
+          "Project not found",
       });
+    }
+
+    // Eski projectlarda likedBy bo'lmasa
+    // avtomatik array qilamiz
+    if (!Array.isArray(project.likedBy)) {
+      project.likedBy = [];
     }
 
     const alreadyLiked =
@@ -421,23 +463,27 @@ export const likeProject = async (
     if (alreadyLiked) {
       return res.status(200).json({
         success: true,
-        message: "Already liked",
         liked: true,
         likesCount:
           project.likedBy.length,
+        message:
+          "Already liked",
       });
     }
 
-    project.likedBy.push(userId);
+    project.likedBy.push(
+      userId
+    );
 
     await project.save();
 
     return res.status(200).json({
       success: true,
-      message: "Project liked",
       liked: true,
       likesCount:
         project.likedBy.length,
+      message:
+        "Project liked",
     });
   } catch (error) {
     console.error(
@@ -463,14 +509,19 @@ export const unlikeProject = async (
 ) => {
   try {
     const { id } = req.params;
-    const userId = req.user.userId;
+
+    const userId =
+      req.user.userId;
 
     if (
-      !mongoose.Types.ObjectId.isValid(id)
+      !mongoose.Types.ObjectId.isValid(
+        id
+      )
     ) {
       return res.status(400).json({
         success: false,
-        message: "Invalid project ID",
+        message:
+          "Invalid project ID",
       });
     }
 
@@ -480,8 +531,13 @@ export const unlikeProject = async (
     if (!project) {
       return res.status(404).json({
         success: false,
-        message: "Project not found",
+        message:
+          "Project not found",
       });
+    }
+
+    if (!Array.isArray(project.likedBy)) {
+      project.likedBy = [];
     }
 
     project.likedBy =
@@ -495,10 +551,11 @@ export const unlikeProject = async (
 
     return res.status(200).json({
       success: true,
-      message: "Project unliked",
       liked: false,
       likesCount:
         project.likedBy.length,
+      message:
+        "Project unliked",
     });
   } catch (error) {
     console.error(
@@ -524,14 +581,19 @@ export const addComment = async (
 ) => {
   try {
     const { id } = req.params;
-    const { content } = req.body;
+
+    const { content } =
+      req.body;
 
     if (
-      !mongoose.Types.ObjectId.isValid(id)
+      !mongoose.Types.ObjectId.isValid(
+        id
+      )
     ) {
       return res.status(400).json({
         success: false,
-        message: "Invalid project ID",
+        message:
+          "Invalid project ID",
       });
     }
 
@@ -541,7 +603,19 @@ export const addComment = async (
     ) {
       return res.status(400).json({
         success: false,
-        message: "Comment cannot be empty",
+        message:
+          "Comment cannot be empty",
+      });
+    }
+
+    if (
+      content.trim().length >
+      1000
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Comment is too long",
       });
     }
 
@@ -551,15 +625,20 @@ export const addComment = async (
     if (!project) {
       return res.status(404).json({
         success: false,
-        message: "Project not found",
+        message:
+          "Project not found",
       });
     }
 
     const comment =
       await Comment.create({
-        content: content.trim(),
+        content:
+          content.trim(),
+
         project: id,
-        author: req.user.userId,
+
+        author:
+          req.user.userId,
       });
 
     const populatedComment =
@@ -570,14 +649,20 @@ export const addComment = async (
         "name username avatar"
       );
 
+    const commentsCount =
+      await Comment.countDocuments({
+        project: id,
+      });
+
     return res.status(201).json({
       success: true,
-      message: "Comment added",
-      comment: populatedComment,
-      commentsCount:
-        await Comment.countDocuments({
-          project: id,
-        }),
+      message:
+        "Comment added",
+
+      comment:
+        populatedComment,
+
+      commentsCount,
     });
   } catch (error) {
     console.error(
@@ -605,23 +690,25 @@ export const getComments = async (
     const { id } = req.params;
 
     if (
-      !mongoose.Types.ObjectId.isValid(id)
+      !mongoose.Types.ObjectId.isValid(
+        id
+      )
     ) {
       return res.status(400).json({
         success: false,
-        message: "Invalid project ID",
+        message:
+          "Invalid project ID",
       });
     }
 
     const project =
-      await Project.exists({
-        _id: id,
-      });
+      await Project.findById(id);
 
     if (!project) {
       return res.status(404).json({
         success: false,
-        message: "Project not found",
+        message:
+          "Project not found",
       });
     }
 
@@ -639,8 +726,11 @@ export const getComments = async (
 
     return res.status(200).json({
       success: true,
+
+      count:
+        comments.length,
+
       comments,
-      count: comments.length,
     });
   } catch (error) {
     console.error(
@@ -665,8 +755,9 @@ export const deleteComment = async (
   res
 ) => {
   try {
-    const { commentId } =
-      req.params;
+    const {
+      commentId,
+    } = req.params;
 
     if (
       !mongoose.Types.ObjectId.isValid(
@@ -675,7 +766,8 @@ export const deleteComment = async (
     ) {
       return res.status(400).json({
         success: false,
-        message: "Invalid comment ID",
+        message:
+          "Invalid comment ID",
       });
     }
 
@@ -687,7 +779,8 @@ export const deleteComment = async (
     if (!comment) {
       return res.status(404).json({
         success: false,
-        message: "Comment not found",
+        message:
+          "Comment not found",
       });
     }
 
@@ -697,17 +790,30 @@ export const deleteComment = async (
     ) {
       return res.status(403).json({
         success: false,
-        message: "You can delete only your own comment",
+        message:
+          "You can delete only your own comment",
       });
     }
+
+    const projectId =
+      comment.project;
 
     await Comment.findByIdAndDelete(
       commentId
     );
 
+    const commentsCount =
+      await Comment.countDocuments({
+        project: projectId,
+      });
+
     return res.status(200).json({
       success: true,
-      message: "Comment deleted",
+
+      message:
+        "Comment deleted",
+
+      commentsCount,
     });
   } catch (error) {
     console.error(
