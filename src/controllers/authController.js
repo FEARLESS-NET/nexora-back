@@ -199,15 +199,15 @@ export const register = async (req, res) => {
 // LOGIN
 // ==========================================
 
-export const login = async (
-  req,
-  res
-) => {
+export const login = async (req, res) => {
   try {
-    const {
-      email,
-      password,
-    } = req.body || {};
+    console.log("================================");
+    console.log("🔐 LOGIN REQUEST");
+    console.log("EMAIL:", req.body?.email);
+    console.log("JWT_SECRET EXISTS:", Boolean(process.env.JWT_SECRET));
+    console.log("================================");
+
+    const { email, password } = req.body || {};
 
     // ========================================
     // VALIDATION

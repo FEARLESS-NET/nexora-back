@@ -3,208 +3,224 @@ import jwt from "jsonwebtoken";
 
 let io;
 
-export const initSocket = (
-  httpServer
-) => {
-  io = new Server(
-    httpServer,
-    {
-      cors: {
-        origin: (() => {
-          const defaults = [
-            "http://localhost:5173",
-            "http://localhost:5174",
-            "http://localhost:5175",
-            "http://localhost:3000",
-          ];
+// ==========================================
+// CORS CONFIG
+// ==========================================
 
-          const envOrigins = (process.env.CORS_ORIGINS || "")
-            .split(",")
-            .map((origin) => origin.trim())
-            .filter(Boolean);
+const DEFAULT_ORIGINS = [
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "http://localhost:5175",
+  "http://127.0.0.1:3000",
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:5174",
+  "http://127.0.0.1:5175",
+];
 
-          return [
-            ...new Set([
-              ...defaults,
-              ...envOrigins,
-            ]),
-          ];
-        })(),
-        credentials: true,
+const getAllowedOrigins = () => {
+  const envOrigins = (process.env.CORS_ORIGINS || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  return [
+    ...new Set([
+      ...DEFAULT_ORIGINS,
+      ...envOrigins,
+    ]),
+  ];
+};
+
+// ==========================================
+// INITIALIZE SOCKET.IO
+// ==========================================
+
+export const initSocket = (httpServer) => {
+  const allowedOrigins = getAllowedOrigins();
+
+  console.log("🌐 Socket CORS origins:", allowedOrigins);
+
+  io = new Server(httpServer, {
+    cors: {
+      origin: (origin, callback) => {
+        if (!origin) {
+          return callback(null, true);
+        }
+
+        if (allowedOrigins.includes(origin)) {
+          return callback(null, true);
+        }
+
+        console.log("❌ Socket CORS blocked:", origin);
+
+        return callback(
+          new Error(`CORS blocked for origin: ${origin}`)
+        );
       },
 
-      transports: [
-        "websocket",
-        "polling",
+      credentials: true,
+
+      methods: [
+        "GET",
+        "POST",
       ],
-    }
-  );
+    },
+
+    transports: [
+      "websocket",
+      "polling",
+    ],
+  });
 
   // ========================================
   // AUTHENTICATION
   // ========================================
 
-  io.use(
-    (socket, next) => {
-      try {
-        const token =
-          socket.handshake.auth
-            ?.token;
+  io.use((socket, next) => {
+    try {
+      const token =
+        socket.handshake.auth?.token;
 
-        if (!token) {
-          return next(
-            new Error(
-              "Authentication required"
-            )
-          );
-        }
-
-        const decoded =
-          jwt.verify(
-            token,
-            process.env.JWT_SECRET
-          );
-
-        if (!decoded?.userId) {
-          return next(
-            new Error(
-              "Invalid authentication token"
-            )
-          );
-        }
-
-        socket.userId =
-          decoded.userId.toString();
-
-        socket.role =
-          decoded.role;
-
-        next();
-      } catch (error) {
-        console.error(
-          "❌ Socket authentication error:",
-          error.message
-        );
-
-        next(
-          new Error(
-            "Authentication failed"
-          )
+      if (!token) {
+        return next(
+          new Error("Authentication required")
         );
       }
+
+      const decoded = jwt.verify(
+        token,
+        process.env.JWT_SECRET
+      );
+
+      if (!decoded?.userId) {
+        return next(
+          new Error("Invalid authentication token")
+        );
+      }
+
+      socket.userId =
+        decoded.userId.toString();
+
+      socket.role =
+        decoded.role || null;
+
+      next();
+    } catch (error) {
+      console.error(
+        "❌ Socket authentication error:",
+        error.message
+      );
+
+      next(
+        new Error("Authentication failed")
+      );
     }
-  );
+  });
 
   // ========================================
   // CONNECTION
   // ========================================
 
-  io.on(
-    "connection",
-    (socket) => {
-      console.log(
-        `🟢 Socket connected: ${socket.userId}`
-      );
+  io.on("connection", (socket) => {
+    console.log(
+      `🟢 Socket connected: ${socket.userId}`
+    );
 
-      // ====================================
-      // PERSONAL ROOM
-      // ====================================
+    // ====================================
+    // PERSONAL USER ROOM
+    // ====================================
 
-      socket.join(
-        `user:${socket.userId}`
-      );
+    socket.join(
+      `user:${socket.userId}`
+    );
 
-      // ====================================
-      // ONLINE
-      // ====================================
+    console.log(
+      `👤 User joined room: user:${socket.userId}`
+    );
 
-      socket.broadcast.emit(
-        "user_online",
-        {
-          userId:
-            socket.userId,
-        }
-      );
+    // ====================================
+    // ONLINE STATUS
+    // ====================================
 
-      // ====================================
-      // TYPING
-      // ====================================
+    socket.broadcast.emit(
+      "user_online",
+      {
+        userId: socket.userId,
+      }
+    );
 
-      socket.on(
-        "typing",
-        ({
-          receiverId,
-        }) => {
-          if (!receiverId) return;
+    // ====================================
+    // TYPING
+    // ====================================
 
-          io.to(
-            `user:${receiverId}`
-          ).emit(
-            "user_typing",
-            {
-              userId:
-                socket.userId,
-            }
-          );
-        }
-      );
+    socket.on(
+      "typing",
+      ({ receiverId } = {}) => {
+        if (!receiverId) return;
 
-      // ====================================
-      // STOP TYPING
-      // ====================================
+        io.to(
+          `user:${receiverId}`
+        ).emit(
+          "user_typing",
+          {
+            userId: socket.userId,
+          }
+        );
+      }
+    );
 
-      socket.on(
-        "stop_typing",
-        ({
-          receiverId,
-        }) => {
-          if (!receiverId) return;
+    // ====================================
+    // STOP TYPING
+    // ====================================
 
-          io.to(
-            `user:${receiverId}`
-          ).emit(
-            "user_stop_typing",
-            {
-              userId:
-                socket.userId,
-            }
-          );
-        }
-      );
+    socket.on(
+      "stop_typing",
+      ({ receiverId } = {}) => {
+        if (!receiverId) return;
 
-      // ====================================
-      // DISCONNECT
-      // ====================================
+        io.to(
+          `user:${receiverId}`
+        ).emit(
+          "user_stop_typing",
+          {
+            userId: socket.userId,
+          }
+        );
+      }
+    );
 
-      socket.on(
-        "disconnect",
-        (reason) => {
-          console.log(
-            `🔴 Socket disconnected: ${socket.userId}`,
-            reason
-          );
+    // ====================================
+    // DISCONNECT
+    // ====================================
 
-          socket.broadcast.emit(
-            "user_offline",
-            {
-              userId:
-                socket.userId,
-            }
-          );
-        }
-      );
-    }
-  );
+    socket.on(
+      "disconnect",
+      (reason) => {
+        console.log(
+          `🔴 Socket disconnected: ${socket.userId}`,
+          reason
+        );
+
+        socket.broadcast.emit(
+          "user_offline",
+          {
+            userId: socket.userId,
+          }
+        );
+      }
+    );
+  });
 
   console.log(
-    "⚡ Socket.IO initialized"
+    "⚡ Socket.IO initialized successfully"
   );
 
   return io;
 };
 
 // ==========================================
-// GET IO
+// GET IO INSTANCE
 // ==========================================
 
 export const getIO = () => {
