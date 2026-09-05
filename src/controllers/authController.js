@@ -20,12 +20,7 @@ export const register = async (req, res) => {
     // VALIDATION
     // ========================================
 
-    if (
-      !name ||
-      !username ||
-      !email ||
-      !password
-    ) {
+    if (!name || !username || !email || !password) {
       return res.status(400).json({
         success: false,
         message:
@@ -52,8 +47,7 @@ export const register = async (req, res) => {
       "company",
     ];
 
-    const selectedRole =
-      role || "developer";
+    const selectedRole = role || "developer";
 
     if (!allowedRoles.includes(selectedRole)) {
       return res.status(400).json({
@@ -64,31 +58,67 @@ export const register = async (req, res) => {
     }
 
     // ========================================
-    // NORMALIZE
+    // NORMALIZE EMAIL
     // ========================================
 
-    const normalizedEmail =
-      email.toLowerCase().trim();
+    const normalizedEmail = email
+      .toLowerCase()
+      .trim();
 
-    const normalizedUsername =
-      username.toLowerCase().trim();
+    // ========================================
+    // NORMALIZE USERNAME
+    // ========================================
+    // Username URL-friendly bo'ladi.
+    //
+    // "Kommil Qotil"   -> "kommil-qotil"
+    // "Kommil   Qotil" -> "kommil-qotil"
+    // "KOMMIL QOTIL"   -> "kommil-qotil"
+    // "kommil_qotil"   -> "kommil_qotil"
+    //
+    // Faqat a-z, 0-9, "-" va "_" qoladi.
+
+    const normalizedUsername = username
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, "-")
+      .replace(/[^a-z0-9_-]/g, "");
+
+    // ========================================
+    // CHECK USERNAME
+    // ========================================
+
+    if (!normalizedUsername) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid username. Use letters, numbers, hyphens or underscores.",
+      });
+    }
+
+    // Username juda qisqa bo'lmasin
+
+    if (normalizedUsername.length < 3) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Username must be at least 3 characters",
+      });
+    }
 
     // ========================================
     // CHECK EXISTING USER
     // ========================================
 
-    const existingUser =
-      await User.findOne({
-        $or: [
-          {
-            email: normalizedEmail,
-          },
-          {
-            username:
-              normalizedUsername,
-          },
-        ],
-      });
+    const existingUser = await User.findOne({
+      $or: [
+        {
+          email: normalizedEmail,
+        },
+        {
+          username: normalizedUsername,
+        },
+      ],
+    });
 
     if (existingUser) {
       return res.status(409).json({
@@ -102,47 +132,41 @@ export const register = async (req, res) => {
     // HASH PASSWORD
     // ========================================
 
-    const hashedPassword =
-      await bcrypt.hash(
-        password,
-        12
-      );
+    const hashedPassword = await bcrypt.hash(
+      password,
+      12
+    );
 
     // ========================================
     // CREATE USER
     // ========================================
 
-    const user =
-      await User.create({
-        name: name.trim(),
+    const user = await User.create({
+      name: name.trim(),
 
-        username:
-          normalizedUsername,
+      username: normalizedUsername,
 
-        email:
-          normalizedEmail,
+      email: normalizedEmail,
 
-        password:
-          hashedPassword,
+      password: hashedPassword,
 
-        role: selectedRole,
-      });
+      role: selectedRole,
+    });
 
     // ========================================
     // CREATE JWT
     // ========================================
 
-    const token =
-      jwt.sign(
-        {
-          userId: user._id,
-          role: user.role,
-        },
-        process.env.JWT_SECRET,
-        {
-          expiresIn: "7d",
-        }
-      );
+    const token = jwt.sign(
+      {
+        userId: user._id,
+        role: user.role,
+      },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: "7d",
+      }
+    );
 
     // ========================================
     // RESPONSE
@@ -163,17 +187,13 @@ export const register = async (req, res) => {
         email: user.email,
         role: user.role,
 
-        avatar:
-          user.avatar || "",
+        avatar: user.avatar || "",
 
-        bio:
-          user.bio || "",
+        bio: user.bio || "",
 
-        location:
-          user.location || "",
+        location: user.location || "",
 
-        skills:
-          user.skills || [],
+        skills: user.skills || [],
 
         linkedinUrl:
           user.linkedinUrl || "",
@@ -204,10 +224,16 @@ export const login = async (req, res) => {
     console.log("================================");
     console.log("🔐 LOGIN REQUEST");
     console.log("EMAIL:", req.body?.email);
-    console.log("JWT_SECRET EXISTS:", Boolean(process.env.JWT_SECRET));
+    console.log(
+      "JWT_SECRET EXISTS:",
+      Boolean(process.env.JWT_SECRET)
+    );
     console.log("================================");
 
-    const { email, password } = req.body || {};
+    const {
+      email,
+      password,
+    } = req.body || {};
 
     // ========================================
     // VALIDATION
@@ -225,13 +251,11 @@ export const login = async (req, res) => {
     // FIND USER
     // ========================================
 
-    const user =
-      await User.findOne({
-        email:
-          email
-            .toLowerCase()
-            .trim(),
-      });
+    const user = await User.findOne({
+      email: email
+        .toLowerCase()
+        .trim(),
+    });
 
     if (!user) {
       return res.status(401).json({
@@ -263,17 +287,16 @@ export const login = async (req, res) => {
     // CREATE JWT
     // ========================================
 
-    const token =
-      jwt.sign(
-        {
-          userId: user._id,
-          role: user.role,
-        },
-        process.env.JWT_SECRET,
-        {
-          expiresIn: "7d",
-        }
-      );
+    const token = jwt.sign(
+      {
+        userId: user._id,
+        role: user.role,
+      },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: "7d",
+      }
+    );
 
     // ========================================
     // RESPONSE
