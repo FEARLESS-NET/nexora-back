@@ -43,8 +43,8 @@ export const getDeveloperByUsername = async (req, res) => {
       username: username.toLowerCase().trim(),
       role: "developer",
     }).select(
-      "name username avatar bio location skills isAvailable"
-    );
+  "name username avatar bio location skills isAvailable linkedinUrl"
+   );
 
     if (!developer) {
       return res.status(404).json({
