@@ -1,5 +1,7 @@
 import mongoose from "mongoose";
 import Project from "../models/projectModel.js";
+import Comment from "../models/Comment.js";
+
 import {
   generateProjectPreview,
 } from "../services/projectPreviewService.js";
@@ -22,8 +24,7 @@ export const createProject = async (req, res) => {
     if (!title || !description) {
       return res.status(400).json({
         success: false,
-        message:
-          "Title and description are required",
+        message: "Title and description are required",
       });
     }
 
@@ -38,13 +39,13 @@ export const createProject = async (req, res) => {
 
       status: status || "In Progress",
 
-      githubUrl:
-        githubUrl?.trim() || "",
+      githubUrl: githubUrl?.trim() || "",
 
-      liveUrl:
-        liveUrl?.trim() || "",
+      liveUrl: liveUrl?.trim() || "",
 
       owner: req.user.userId,
+
+      likedBy: [],
     });
 
     // ==========================================
@@ -52,23 +53,29 @@ export const createProject = async (req, res) => {
     // ==========================================
 
     if (liveUrl?.trim()) {
-      const previewImage =
-        await generateProjectPreview(
-          liveUrl.trim()
+      try {
+        const previewImage =
+          await generateProjectPreview(
+            liveUrl.trim()
+          );
+
+        if (previewImage) {
+          project.previewImage =
+            previewImage;
+
+          await project.save();
+        }
+      } catch (previewError) {
+        console.error(
+          "Project preview error:",
+          previewError
         );
-
-      if (previewImage) {
-        project.previewImage =
-          previewImage;
-
-        await project.save();
       }
     }
 
     return res.status(201).json({
       success: true,
-      message:
-        "Project created successfully",
+      message: "Project created successfully",
       project,
     });
   } catch (error) {
@@ -131,8 +138,7 @@ export const getProject = async (
     if (!id) {
       return res.status(400).json({
         success: false,
-        message:
-          "Project ID is required",
+        message: "Project ID is required",
       });
     }
 
@@ -141,8 +147,7 @@ export const getProject = async (
     ) {
       return res.status(400).json({
         success: false,
-        message:
-          "Invalid project ID",
+        message: "Invalid project ID",
       });
     }
 
@@ -155,8 +160,7 @@ export const getProject = async (
     if (!project) {
       return res.status(404).json({
         success: false,
-        message:
-          "Project not found",
+        message: "Project not found",
       });
     }
 
@@ -191,8 +195,7 @@ export const updateProject = async (
     if (!id) {
       return res.status(400).json({
         success: false,
-        message:
-          "Project ID is required",
+        message: "Project ID is required",
       });
     }
 
@@ -201,8 +204,7 @@ export const updateProject = async (
     ) {
       return res.status(400).json({
         success: false,
-        message:
-          "Invalid project ID",
+        message: "Invalid project ID",
       });
     }
 
@@ -215,10 +217,6 @@ export const updateProject = async (
       liveUrl,
     } = req.body;
 
-    // ==========================================
-    // FIND ONLY OWNER'S PROJECT
-    // ==========================================
-
     const project =
       await Project.findOne({
         _id: id,
@@ -228,18 +226,12 @@ export const updateProject = async (
     if (!project) {
       return res.status(404).json({
         success: false,
-        message:
-          "Project not found",
+        message: "Project not found",
       });
     }
 
-    // ==========================================
-    // UPDATE BASIC DATA
-    // ==========================================
-
     if (title !== undefined) {
-      project.title =
-        title.trim();
+      project.title = title.trim();
     }
 
     if (description !== undefined) {
@@ -277,27 +269,28 @@ export const updateProject = async (
       project.liveUrl =
         newLiveUrl;
 
-      // ========================================
-      // LIVE URL O'ZGARGAN BO'LSA
-      // YANGI SCREENSHOT
-      // ========================================
-
       if (
         newLiveUrl &&
         newLiveUrl !== oldLiveUrl
       ) {
-        const previewImage =
-          await generateProjectPreview(
-            newLiveUrl
-          );
+        try {
+          const previewImage =
+            await generateProjectPreview(
+              newLiveUrl
+            );
 
-        if (previewImage) {
-          project.previewImage =
-            previewImage;
+          if (previewImage) {
+            project.previewImage =
+              previewImage;
+          }
+        } catch (previewError) {
+          console.error(
+            "Preview generation error:",
+            previewError
+          );
         }
       }
 
-      // Live URL o'chirilsa
       if (!newLiveUrl) {
         project.previewImage = "";
       }
@@ -307,8 +300,7 @@ export const updateProject = async (
 
     return res.status(200).json({
       success: true,
-      message:
-        "Project updated successfully",
+      message: "Project updated successfully",
       project,
     });
   } catch (error) {
@@ -338,8 +330,7 @@ export const deleteProject = async (
     if (!id) {
       return res.status(400).json({
         success: false,
-        message:
-          "Project ID is required",
+        message: "Project ID is required",
       });
     }
 
@@ -348,14 +339,9 @@ export const deleteProject = async (
     ) {
       return res.status(400).json({
         success: false,
-        message:
-          "Invalid project ID",
+        message: "Invalid project ID",
       });
     }
-
-    // ==========================================
-    // ONLY OWNER CAN DELETE
-    // ==========================================
 
     const project =
       await Project.findOneAndDelete({
@@ -366,19 +352,366 @@ export const deleteProject = async (
     if (!project) {
       return res.status(404).json({
         success: false,
-        message:
-          "Project not found",
+        message: "Project not found",
       });
     }
 
+    // Project o'chirilsa unga tegishli
+    // commentlar ham o'chadi
+    await Comment.deleteMany({
+      project: id,
+    });
+
     return res.status(200).json({
       success: true,
-      message:
-        "Project deleted successfully",
+      message: "Project deleted successfully",
     });
   } catch (error) {
     console.error(
       "Delete project error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
+// ======================================================
+// ❤️ LIKE PROJECT
+// POST /api/projects/:id/like
+// ======================================================
+
+export const likeProject = async (
+  req,
+  res
+) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.userId;
+
+    if (
+      !mongoose.Types.ObjectId.isValid(id)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid project ID",
+      });
+    }
+
+    const project =
+      await Project.findById(id);
+
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: "Project not found",
+      });
+    }
+
+    const alreadyLiked =
+      project.likedBy.some(
+        (user) =>
+          user.toString() ===
+          userId.toString()
+      );
+
+    if (alreadyLiked) {
+      return res.status(200).json({
+        success: true,
+        message: "Already liked",
+        liked: true,
+        likesCount:
+          project.likedBy.length,
+      });
+    }
+
+    project.likedBy.push(userId);
+
+    await project.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Project liked",
+      liked: true,
+      likesCount:
+        project.likedBy.length,
+    });
+  } catch (error) {
+    console.error(
+      "Like project error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
+// ======================================================
+// 💔 UNLIKE PROJECT
+// DELETE /api/projects/:id/like
+// ======================================================
+
+export const unlikeProject = async (
+  req,
+  res
+) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.userId;
+
+    if (
+      !mongoose.Types.ObjectId.isValid(id)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid project ID",
+      });
+    }
+
+    const project =
+      await Project.findById(id);
+
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: "Project not found",
+      });
+    }
+
+    project.likedBy =
+      project.likedBy.filter(
+        (user) =>
+          user.toString() !==
+          userId.toString()
+      );
+
+    await project.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Project unliked",
+      liked: false,
+      likesCount:
+        project.likedBy.length,
+    });
+  } catch (error) {
+    console.error(
+      "Unlike project error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
+// ======================================================
+// 💬 ADD COMMENT
+// POST /api/projects/:id/comments
+// ======================================================
+
+export const addComment = async (
+  req,
+  res
+) => {
+  try {
+    const { id } = req.params;
+    const { content } = req.body;
+
+    if (
+      !mongoose.Types.ObjectId.isValid(id)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid project ID",
+      });
+    }
+
+    if (
+      !content ||
+      !content.trim()
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Comment cannot be empty",
+      });
+    }
+
+    const project =
+      await Project.findById(id);
+
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: "Project not found",
+      });
+    }
+
+    const comment =
+      await Comment.create({
+        content: content.trim(),
+        project: id,
+        author: req.user.userId,
+      });
+
+    const populatedComment =
+      await Comment.findById(
+        comment._id
+      ).populate(
+        "author",
+        "name username avatar"
+      );
+
+    return res.status(201).json({
+      success: true,
+      message: "Comment added",
+      comment: populatedComment,
+      commentsCount:
+        await Comment.countDocuments({
+          project: id,
+        }),
+    });
+  } catch (error) {
+    console.error(
+      "Add comment error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
+// ======================================================
+// 💬 GET COMMENTS
+// GET /api/projects/:id/comments
+// ======================================================
+
+export const getComments = async (
+  req,
+  res
+) => {
+  try {
+    const { id } = req.params;
+
+    if (
+      !mongoose.Types.ObjectId.isValid(id)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid project ID",
+      });
+    }
+
+    const project =
+      await Project.exists({
+        _id: id,
+      });
+
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: "Project not found",
+      });
+    }
+
+    const comments =
+      await Comment.find({
+        project: id,
+      })
+        .populate(
+          "author",
+          "name username avatar"
+        )
+        .sort({
+          createdAt: -1,
+        });
+
+    return res.status(200).json({
+      success: true,
+      comments,
+      count: comments.length,
+    });
+  } catch (error) {
+    console.error(
+      "Get comments error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
+// ======================================================
+// 🗑️ DELETE COMMENT
+// DELETE /api/projects/comments/:commentId
+// ======================================================
+
+export const deleteComment = async (
+  req,
+  res
+) => {
+  try {
+    const { commentId } =
+      req.params;
+
+    if (
+      !mongoose.Types.ObjectId.isValid(
+        commentId
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid comment ID",
+      });
+    }
+
+    const comment =
+      await Comment.findById(
+        commentId
+      );
+
+    if (!comment) {
+      return res.status(404).json({
+        success: false,
+        message: "Comment not found",
+      });
+    }
+
+    if (
+      comment.author.toString() !==
+      req.user.userId.toString()
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "You can delete only your own comment",
+      });
+    }
+
+    await Comment.findByIdAndDelete(
+      commentId
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Comment deleted",
+    });
+  } catch (error) {
+    console.error(
+      "Delete comment error:",
       error
     );
 

@@ -6,16 +6,21 @@ import {
   getProject,
   updateProject,
   deleteProject,
+  likeProject,
+  unlikeProject,
+  addComment,
+  getComments,
+  deleteComment,
 } from "../controllers/projectController.js";
 
-import Project from "../models/projectModel.js";
-
 import { protect } from "../middleware/authMiddleware.js";
+
+import Project from "../models/projectModel.js";
 
 const router = express.Router();
 
 // ==========================================
-// CREATE PROJECT
+// CREATE
 // ==========================================
 
 router.post(
@@ -35,84 +40,105 @@ router.get(
 );
 
 // ==========================================
-// GET ALL PROJECTS - PUBLIC
+// GET ALL PROJECTS PUBLIC
 // ==========================================
 
 router.get(
   "/all",
   async (req, res) => {
     try {
-      const projects = await Project.find()
-        .populate("owner", "name username avatar role")
-        .sort({ createdAt: -1 });
+      const projects =
+        await Project.find()
+          .populate(
+            "owner",
+            "name username avatar role"
+          )
+          .sort({
+            createdAt: -1,
+          });
 
-      const transformedProjects = projects.map((project) => {
-        const projectData = project.toObject();
+      const transformedProjects =
+        projects.map((project) => {
+          const projectData =
+            project.toObject();
 
-        const owner = project.owner;
+          const owner =
+            project.owner;
 
-        return {
-          ...projectData,
+          return {
+            ...projectData,
 
-          // ==========================================
-          // OWNER INFORMATION
-          // ==========================================
+            ownerId:
+              owner?._id || null,
 
-          ownerId: owner?._id || null,
-          ownerRole: owner?.role || null,
+            ownerRole:
+              owner?.role || null,
 
-          // Developer
-          developerId:
-            owner?.role === "developer"
-              ? owner._id
-              : null,
+            developerId:
+              owner?.role === "developer"
+                ? owner._id
+                : null,
 
-          developerName:
-            owner?.role === "developer"
-              ? owner.name
-              : null,
+            developerName:
+              owner?.role === "developer"
+                ? owner.name
+                : null,
 
-          developerUsername:
-            owner?.role === "developer"
-              ? owner.username
-              : null,
+            developerUsername:
+              owner?.role === "developer"
+                ? owner.username
+                : null,
 
-          developerAvatar:
-            owner?.role === "developer"
-              ? owner.avatar
-              : null,
+            developerAvatar:
+              owner?.role === "developer"
+                ? owner.avatar
+                : null,
 
-          // Company
-          companyId:
-            owner?.role === "company"
-              ? owner._id
-              : null,
+            companyId:
+              owner?.role === "company"
+                ? owner._id
+                : null,
 
-          companyName:
-            owner?.role === "company"
-              ? owner.name
-              : null,
+            companyName:
+              owner?.role === "company"
+                ? owner.name
+                : null,
 
-          companyUsername:
-            owner?.role === "company"
-              ? owner.username
-              : null,
+            companyUsername:
+              owner?.role === "company"
+                ? owner.username
+                : null,
 
-          companyAvatar:
-            owner?.role === "company"
-              ? owner.avatar
-              : null,
-        };
-      });
+            companyAvatar:
+              owner?.role === "company"
+                ? owner.avatar
+                : null,
+
+            // ❤️ REAL LIKE COUNT
+            likes:
+              project.likedBy?.length || 0,
+
+            // 💬 REAL COMMENT COUNT
+            comments:
+              awaitProjectCommentsCount(
+                project._id
+              ),
+          };
+        });
+
+      const finalProjects =
+        await Promise.all(
+          transformedProjects
+        );
 
       return res.status(200).json({
         success: true,
-        count: transformedProjects.length,
-        projects: transformedProjects,
+        count: finalProjects.length,
+        projects: finalProjects,
       });
     } catch (error) {
       console.error(
-        "❌ Error fetching all projects:",
+        "Error fetching all projects:",
         error
       );
 
@@ -125,7 +151,56 @@ router.get(
 );
 
 // ==========================================
-// GET SINGLE PROJECT
+// ❤️ LIKE
+// ==========================================
+
+router.post(
+  "/:id/like",
+  protect,
+  likeProject
+);
+
+// ==========================================
+// 💔 UNLIKE
+// ==========================================
+
+router.delete(
+  "/:id/like",
+  protect,
+  unlikeProject
+);
+
+// ==========================================
+// 💬 GET COMMENTS
+// ==========================================
+
+router.get(
+  "/:id/comments",
+  getComments
+);
+
+// ==========================================
+// 💬 ADD COMMENT
+// ==========================================
+
+router.post(
+  "/:id/comments",
+  protect,
+  addComment
+);
+
+// ==========================================
+// 🗑️ DELETE COMMENT
+// ==========================================
+
+router.delete(
+  "/comments/:commentId",
+  protect,
+  deleteComment
+);
+
+// ==========================================
+// GET SINGLE
 // ==========================================
 
 router.get(
@@ -135,7 +210,7 @@ router.get(
 );
 
 // ==========================================
-// UPDATE PROJECT
+// UPDATE
 // ==========================================
 
 router.put(
@@ -145,7 +220,7 @@ router.put(
 );
 
 // ==========================================
-// DELETE PROJECT
+// DELETE
 // ==========================================
 
 router.delete(
