@@ -2,7 +2,6 @@ import mongoose from "mongoose";
 
 import Message from "../models/Message.js";
 import Notification from "../models/Notification.js";
-
 import User from "../models/User.js";
 
 import { getIO } from "../config/socket.js";
@@ -10,11 +9,22 @@ import { getIO } from "../config/socket.js";
 import uploadToImgBB from "../utils/uploadToImgBB.js";
 
 // ==========================================
+// HELPER
+// ==========================================
+
+const isValidObjectId = (id) => {
+  return mongoose.Types.ObjectId.isValid(id);
+};
+
+// ==========================================
 // SEND MESSAGE
 // TEXT + IMAGE
 // ==========================================
 
-export const sendMessage = async (req, res) => {
+export const sendMessage = async (
+  req,
+  res
+) => {
   try {
     const {
       content,
@@ -22,34 +32,25 @@ export const sendMessage = async (req, res) => {
       proposalId,
     } = req.body;
 
-    // ======================================
-    // DEBUG
-    // ======================================
-
     console.log("📨 SEND MESSAGE");
-    console.log("Sender:", req.user?.userId);
-    console.log("Receiver:", receiverId);
-    console.log("Content:", content);
-
     console.log(
-      "File:",
-      req.file
-        ? {
-            name: req.file.originalname,
-            type: req.file.mimetype,
-            size: req.file.size,
-          }
-        : "No image"
+      "Sender:",
+      req.user?.userId
+    );
+    console.log(
+      "Receiver:",
+      receiverId
     );
 
     // ======================================
-    // CHECK AUTH
+    // AUTH
     // ======================================
 
     if (!req.user?.userId) {
       return res.status(401).json({
         success: false,
-        message: "Authentication required",
+        message:
+          "Authentication required",
       });
     }
 
@@ -59,11 +60,12 @@ export const sendMessage = async (req, res) => {
 
     if (
       !receiverId ||
-      !mongoose.Types.ObjectId.isValid(receiverId)
+      !isValidObjectId(receiverId)
     ) {
       return res.status(400).json({
         success: false,
-        message: "Valid receiver is required",
+        message:
+          "Valid receiver is required",
       });
     }
 
@@ -77,20 +79,25 @@ export const sendMessage = async (req, res) => {
     ) {
       return res.status(400).json({
         success: false,
-        message: "You cannot send a message to yourself",
+        message:
+          "You cannot send a message to yourself",
       });
     }
 
     // ======================================
-    // VERIFY RECEIVER EXISTS
+    // GET RECEIVER
     // ======================================
 
-    const receiver = await User.findById(receiverId);
+    const receiver =
+      await User.findById(
+        receiverId
+      );
 
     if (!receiver) {
       return res.status(404).json({
         success: false,
-        message: "Receiver not found",
+        message:
+          "Receiver not found",
       });
     }
 
@@ -98,14 +105,50 @@ export const sendMessage = async (req, res) => {
     // GET SENDER
     // ======================================
 
-    const sender = await User.findById(
-      req.user.userId
-    );
+    const sender =
+      await User.findById(
+        req.user.userId
+      );
 
     if (!sender) {
       return res.status(404).json({
         success: false,
-        message: "Sender not found",
+        message:
+          "Sender not found",
+      });
+    }
+
+    // ======================================
+    // CHECK BLOCK
+    // ======================================
+
+    const senderBlocked =
+      sender.blockedUsers?.some(
+        (id) =>
+          id.toString() ===
+          receiverId.toString()
+      );
+
+    if (senderBlocked) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "You blocked this user. Unblock them first.",
+      });
+    }
+
+    const receiverBlocked =
+      receiver.blockedUsers?.some(
+        (id) =>
+          id.toString() ===
+          req.user.userId.toString()
+      );
+
+    if (receiverBlocked) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "You cannot send a message to this user.",
       });
     }
 
@@ -127,7 +170,7 @@ export const sendMessage = async (req, res) => {
 
     if (req.file) {
       console.log(
-        "☁️ Uploading image to ImgBB..."
+        "☁️ Uploading image..."
       );
 
       const uploaded =
@@ -135,17 +178,20 @@ export const sendMessage = async (req, res) => {
           req.file.buffer
         );
 
-      imageUrl = uploaded.url;
-      imageDeleteUrl = uploaded.deleteUrl;
+      imageUrl =
+        uploaded.url;
+
+      imageDeleteUrl =
+        uploaded.deleteUrl;
 
       console.log(
-        "✅ ImgBB uploaded:",
+        "✅ Image uploaded:",
         imageUrl
       );
     }
 
     // ======================================
-    // MUST HAVE TEXT OR IMAGE
+    // VALIDATE MESSAGE
     // ======================================
 
     if (
@@ -154,7 +200,8 @@ export const sendMessage = async (req, res) => {
     ) {
       return res.status(400).json({
         success: false,
-        message: "Message cannot be empty",
+        message:
+          "Message cannot be empty",
       });
     }
 
@@ -164,27 +211,25 @@ export const sendMessage = async (req, res) => {
 
     const message =
       await Message.create({
-        content: trimmedContent,
+        content:
+          trimmedContent,
 
         imageUrl,
 
         imageDeleteUrl,
 
-        sender: req.user.userId,
+        sender:
+          req.user.userId,
 
-        receiver: receiverId,
+        receiver:
+          receiverId,
 
         proposal:
           proposalId || null,
       });
 
-    console.log(
-      "✅ Message created:",
-      message._id
-    );
-
     // ======================================
-    // CREATE NOTIFICATION
+    // NOTIFICATION
     // ======================================
 
     try {
@@ -193,28 +238,25 @@ export const sendMessage = async (req, res) => {
 
         title: "New message",
 
-        content: `${sender.name} sent you a new message.`,
+        content:
+          `${sender.name} sent you a new message.`,
 
-        recipient: receiverId,
+        recipient:
+          receiverId,
 
-        sender: req.user.userId,
+        sender:
+          req.user.userId,
 
-        relatedMessage: message._id,
+        relatedMessage:
+          message._id,
 
         proposal:
           proposalId || null,
       });
-
-      console.log(
-        "🔔 Message notification created"
-      );
-    } catch (notificationError) {
-      // Notification xatosi message yuborilishini
-      // to'xtatmasligi kerak.
-
+    } catch (error) {
       console.error(
-        "❌ Message notification error:",
-        notificationError
+        "❌ Notification error:",
+        error
       );
     }
 
@@ -242,20 +284,12 @@ export const sendMessage = async (req, res) => {
     try {
       const io = getIO();
 
-      // ====================================
-      // SEND TO RECEIVER
-      // ====================================
-
       io.to(
         `user:${receiverId}`
       ).emit(
         "new_message",
         populatedMessage
       );
-
-      // ====================================
-      // SEND BACK TO SENDER
-      // ====================================
 
       io.to(
         `user:${req.user.userId}`
@@ -264,13 +298,9 @@ export const sendMessage = async (req, res) => {
         populatedMessage
       );
 
-      console.log(
-        "🟢 Socket message emitted"
-      );
-
     } catch (socketError) {
       console.error(
-        "❌ Socket emit error:",
+        "❌ Socket error:",
         socketError.message
       );
     }
@@ -281,7 +311,8 @@ export const sendMessage = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: populatedMessage,
+      message:
+        populatedMessage,
     });
 
   } catch (error) {
@@ -311,20 +342,34 @@ export const getConversation = async (
     const { userId } =
       req.params;
 
-    // ======================================
-    // VALIDATE USER
-    // ======================================
-
     if (
-      !mongoose.Types.ObjectId.isValid(
-        userId
-      )
+      !isValidObjectId(userId)
     ) {
       return res.status(400).json({
         success: false,
-        message: "Invalid user ID",
+        message:
+          "Invalid user ID",
       });
     }
+
+    // ======================================
+    // CHECK IF CURRENT USER BLOCKED USER
+    // ======================================
+
+    const currentUser =
+      await User.findById(
+        req.user.userId
+      ).select("blockedUsers");
+
+    const isBlocked =
+      currentUser?.blockedUsers?.some(
+        (id) =>
+          id.toString() ===
+          userId.toString()
+      );
+
+    // Chat history still can be viewed
+    // even if blocked.
 
     // ======================================
     // GET MESSAGES
@@ -363,19 +408,19 @@ export const getConversation = async (
         });
 
     // ======================================
-    // MARK RECEIVED MESSAGES AS READ
+    // MARK RECEIVED AS READ
     // ======================================
 
     await Message.updateMany(
       {
-        sender: userId,
+        sender:
+          userId,
 
         receiver:
           req.user.userId,
 
         read: false,
       },
-
       {
         read: true,
       }
@@ -392,6 +437,9 @@ export const getConversation = async (
         messages.length,
 
       messages,
+
+      isBlocked:
+        Boolean(isBlocked),
     });
 
   } catch (error) {
@@ -402,7 +450,8 @@ export const getConversation = async (
 
     return res.status(500).json({
       success: false,
-      message: "Server error",
+      message:
+        "Server error",
     });
   }
 };
@@ -411,131 +460,258 @@ export const getConversation = async (
 // GET MY CONVERSATIONS
 // ==========================================
 
-export const getMyConversations = async (
-  req,
-  res
-) => {
-  try {
-    // ======================================
-    // GET ALL USER MESSAGES
-    // ======================================
+export const getMyConversations =
+  async (
+    req,
+    res
+  ) => {
+    try {
+      const messages =
+        await Message.find({
+          $or: [
+            {
+              sender:
+                req.user.userId,
+            },
 
-    const messages =
-      await Message.find({
-        $or: [
-          {
-            sender:
-              req.user.userId,
-          },
+            {
+              receiver:
+                req.user.userId,
+            },
+          ],
+        })
+          .populate(
+            "sender",
+            "name username avatar"
+          )
+          .populate(
+            "receiver",
+            "name username avatar"
+          )
+          .sort({
+            createdAt: -1,
+          });
 
-          {
-            receiver:
-              req.user.userId,
-          },
-        ],
-      })
-        .populate(
-          "sender",
-          "name username avatar"
-        )
-        .populate(
-          "receiver",
-          "name username avatar"
-        )
-        .sort({
-          createdAt: -1,
-        });
+      const conversations = {};
 
-    // ======================================
-    // BUILD CONVERSATIONS
-    // ======================================
+      const currentUserId =
+        req.user.userId.toString();
 
-    const conversations = {};
+      messages.forEach(
+        (msg) => {
+          if (
+            !msg.sender ||
+            !msg.receiver
+          ) {
+            return;
+          }
 
-    const currentUserId =
-      req.user.userId.toString();
+          const senderId =
+            msg.sender._id.toString();
 
-    messages.forEach((msg) => {
-      if (
-        !msg.sender ||
-        !msg.receiver
-      ) {
-        return;
-      }
+          const receiverId =
+            msg.receiver._id.toString();
 
-      const senderId =
-        msg.sender._id.toString();
+          const otherUserId =
+            senderId === currentUserId
+              ? receiverId
+              : senderId;
 
-      const receiverId =
-        msg.receiver._id.toString();
+          const otherUser =
+            senderId === currentUserId
+              ? msg.receiver
+              : msg.sender;
 
-      const otherUserId =
-        senderId === currentUserId
-          ? receiverId
-          : senderId;
+          if (
+            !conversations[
+              otherUserId
+            ]
+          ) {
+            conversations[
+              otherUserId
+            ] = {
+              user:
+                otherUser,
 
-      const otherUser =
-        senderId === currentUserId
-          ? msg.receiver
-          : msg.sender;
+              lastMessage:
+                msg,
 
-      // ====================================
-      // CREATE CONVERSATION
-      // ====================================
+              unreadCount:
+                0,
+            };
+          }
 
-      if (
-        !conversations[
-          otherUserId
-        ]
-      ) {
-        conversations[
-          otherUserId
-        ] = {
-          user: otherUser,
-
-          lastMessage: msg,
-
-          unreadCount: 0,
-        };
-      }
-
-      // ====================================
-      // UNREAD
-      // ====================================
-
-      if (
-        receiverId ===
-          currentUserId &&
-        !msg.read
-      ) {
-        conversations[
-          otherUserId
-        ].unreadCount++;
-      }
-    });
-
-    // ======================================
-    // RESPONSE
-    // ======================================
-
-    const conversationList =
-      Object.values(
-        conversations
+          if (
+            receiverId ===
+              currentUserId &&
+            !msg.read
+          ) {
+            conversations[
+              otherUserId
+            ].unreadCount++;
+          }
+        }
       );
+
+      const conversationList =
+        Object.values(
+          conversations
+        );
+
+      // ====================================
+      // CHECK BLOCK STATUS
+      // ====================================
+
+      const currentUser =
+        await User.findById(
+          req.user.userId
+        ).select(
+          "blockedUsers"
+        );
+
+      const blockedIds =
+        (
+          currentUser?.blockedUsers ||
+          []
+        ).map((id) =>
+          id.toString()
+        );
+
+      const result =
+        conversationList.map(
+          (chat) => ({
+            ...chat,
+
+            isBlocked:
+              blockedIds.includes(
+                chat.user._id.toString()
+              ),
+          })
+        );
+
+      return res.status(200).json({
+        success: true,
+
+        count:
+          result.length,
+
+        conversations:
+          result,
+      });
+
+    } catch (error) {
+      console.error(
+        "❌ Get conversations error:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "Server error",
+      });
+    }
+  };
+
+
+
+// ==========================================
+// DELETE SINGLE OWN MESSAGE
+// ==========================================
+
+export const deleteMessage = async (req, res) => {
+  try {
+    const { messageId } = req.params;
+
+    if (!isValidObjectId(messageId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid message ID",
+      });
+    }
+
+    const message = await Message.findById(messageId);
+
+    if (!message) {
+      return res.status(404).json({
+        success: false,
+        message: "Message not found",
+      });
+    }
+
+    const currentUserId = req.user.userId.toString();
+    const senderId = message.sender.toString();
+    const receiverId = message.receiver.toString();
+
+    // ==========================================
+    // FAQAT XABAR EGASI O'CHIRA OLADI
+    // ==========================================
+
+    if (senderId !== currentUserId) {
+      return res.status(403).json({
+        success: false,
+        message: "You can only delete your own messages",
+      });
+    }
+
+    // ==========================================
+    // DELETE MESSAGE
+    // ==========================================
+
+    await Message.findByIdAndDelete(messageId);
+
+    // ==========================================
+    // DELETE RELATED NOTIFICATION
+    // ==========================================
+
+    try {
+      await Notification.deleteMany({
+        relatedMessage: message._id,
+      });
+    } catch (error) {
+      console.error(
+        "❌ Notification delete error:",
+        error.message
+      );
+    }
+
+    // ==========================================
+    // SOCKET
+    // ==========================================
+
+    try {
+      const io = getIO();
+
+      // Sender
+      io.to(`user:${senderId}`).emit(
+        "message_deleted",
+        {
+          messageId: messageId.toString(),
+        }
+      );
+
+      // Receiver
+      io.to(`user:${receiverId}`).emit(
+        "message_deleted",
+        {
+          messageId: messageId.toString(),
+        }
+      );
+    } catch (error) {
+      console.error(
+        "❌ Socket delete error:",
+        error.message
+      );
+    }
 
     return res.status(200).json({
       success: true,
-
-      count:
-        conversationList.length,
-
-      conversations:
-        conversationList,
+      message: "Message deleted successfully",
+      messageId,
     });
-
   } catch (error) {
     console.error(
-      "❌ Get conversations error:",
+      "❌ Delete message error:",
       error
     );
 
@@ -547,6 +723,559 @@ export const getMyConversations = async (
 };
 
 // ==========================================
+// DELETE SELECTED MESSAGES
+// ==========================================
+
+
+// ==========================================
+
+export const deleteSelectedMessages = async (
+  req,
+  res
+) => {
+  try {
+    const { messageIds } = req.body;
+
+    // ==========================================
+    // VALIDATE
+    // ==========================================
+
+    if (
+      !Array.isArray(messageIds) ||
+      messageIds.length === 0
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "No messages selected",
+      });
+    }
+
+    const validIds = messageIds.filter((id) =>
+      isValidObjectId(id)
+    );
+
+    if (validIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid message IDs",
+      });
+    }
+
+    const currentUserId =
+      req.user.userId.toString();
+
+    // ==========================================
+    // FAQAT O'Z XABARLARINI TOPAMIZ
+    // ==========================================
+
+    const messages = await Message.find({
+      _id: {
+        $in: validIds,
+      },
+
+      sender: currentUserId,
+    });
+
+    if (messages.length === 0) {
+      return res.status(403).json({
+        success: false,
+        message: "You can only delete your own messages",
+      });
+    }
+
+    const ids = messages.map((msg) =>
+      msg._id.toString()
+    );
+
+    // ==========================================
+    // DELETE
+    // ==========================================
+
+    await Message.deleteMany({
+      _id: {
+        $in: ids,
+      },
+
+      sender: currentUserId,
+    });
+
+    // ==========================================
+    // DELETE NOTIFICATIONS
+    // ==========================================
+
+    try {
+      await Notification.deleteMany({
+        relatedMessage: {
+          $in: ids,
+        },
+      });
+    } catch (error) {
+      console.error(
+        "❌ Notification delete error:",
+        error.message
+      );
+    }
+
+    // ==========================================
+    // SOCKET
+    // ==========================================
+
+    try {
+      const io = getIO();
+
+      const affectedUsers = new Set();
+
+      messages.forEach((msg) => {
+        affectedUsers.add(
+          msg.sender.toString()
+        );
+
+        affectedUsers.add(
+          msg.receiver.toString()
+        );
+      });
+
+      affectedUsers.forEach((userId) => {
+        io.to(`user:${userId}`).emit(
+          "messages_deleted",
+          {
+            messageIds: ids,
+          }
+        );
+      });
+    } catch (error) {
+      console.error(
+        "❌ Socket selected delete error:",
+        error.message
+      );
+    }
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Selected messages deleted successfully",
+      deletedCount: ids.length,
+      messageIds: ids,
+    });
+  } catch (error) {
+    console.error(
+      "❌ Delete selected messages error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+// ==========================================
+// DELETE ENTIRE CONVERSATION
+// ==========================================
+
+export const deleteConversation =
+  async (
+    req,
+    res
+  ) => {
+    try {
+      const {
+        userId,
+      } = req.params;
+
+      if (
+        !isValidObjectId(
+          userId
+        )
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid user ID",
+        });
+      }
+
+      const currentUser =
+        req.user.userId.toString();
+
+      // ====================================
+      // FIND MESSAGES
+      // ====================================
+
+      const messages =
+        await Message.find({
+          $or: [
+            {
+              sender:
+                currentUser,
+
+              receiver:
+                userId,
+            },
+
+            {
+              sender:
+                userId,
+
+              receiver:
+                currentUser,
+            },
+          ],
+        }).select("_id");
+
+      const messageIds =
+        messages.map(
+          (msg) =>
+            msg._id
+        );
+
+      // ====================================
+      // DELETE MESSAGES
+      // ====================================
+
+      if (
+        messageIds.length > 0
+      ) {
+        await Message.deleteMany({
+          _id: {
+            $in: messageIds,
+          },
+        });
+      }
+
+      // ====================================
+      // DELETE NOTIFICATIONS
+      // ====================================
+
+      try {
+        if (
+          messageIds.length > 0
+        ) {
+          await Notification.deleteMany({
+            relatedMessage: {
+              $in: messageIds,
+            },
+          });
+        }
+      } catch (error) {
+        console.error(
+          "Notification delete error:",
+          error
+        );
+      }
+
+      // ====================================
+      // SOCKET
+      // ====================================
+
+      try {
+        const io = getIO();
+
+        io.to(
+          `user:${currentUser}`
+        ).emit(
+          "conversation_deleted",
+          {
+            userId,
+          }
+        );
+
+        io.to(
+          `user:${userId}`
+        ).emit(
+          "conversation_deleted",
+          {
+            userId:
+              currentUser,
+          }
+        );
+
+      } catch (error) {
+        console.error(
+          "Socket conversation delete error:",
+          error.message
+        );
+      }
+
+      return res.status(200).json({
+        success: true,
+
+        message:
+          "Conversation deleted successfully",
+
+        deletedCount:
+          messageIds.length,
+      });
+
+    } catch (error) {
+      console.error(
+        "❌ Delete conversation error:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "Server error",
+      });
+    }
+  };
+
+// ==========================================
+// BLOCK USER
+// ==========================================
+
+export const blockUser = async (
+  req,
+  res
+) => {
+  try {
+    const {
+      userId,
+    } = req.params;
+
+    if (
+      !isValidObjectId(userId)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid user ID",
+      });
+    }
+
+    if (
+      userId.toString() ===
+      req.user.userId.toString()
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "You cannot block yourself",
+      });
+    }
+
+    const user =
+      await User.findById(
+        req.user.userId
+      );
+
+    const targetUser =
+      await User.findById(
+        userId
+      );
+
+    if (!targetUser) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "User not found",
+      });
+    }
+
+    // ====================================
+    // ALREADY BLOCKED
+    // ====================================
+
+    const alreadyBlocked =
+      user.blockedUsers?.some(
+        (id) =>
+          id.toString() ===
+          userId.toString()
+      );
+
+    if (!alreadyBlocked) {
+      user.blockedUsers.push(
+        userId
+      );
+
+      await user.save();
+    }
+
+    // ====================================
+    // SOCKET
+    // ====================================
+
+    try {
+      const io = getIO();
+
+      io.to(
+        `user:${req.user.userId}`
+      ).emit(
+        "user_blocked",
+        {
+          userId,
+        }
+      );
+
+    } catch (error) {
+      console.error(
+        "Socket block error:",
+        error.message
+      );
+    }
+
+    return res.status(200).json({
+      success: true,
+
+      message:
+        "User blocked successfully",
+
+      userId,
+    });
+
+  } catch (error) {
+    console.error(
+      "❌ Block user error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Server error",
+    });
+  }
+};
+
+// ==========================================
+// UNBLOCK USER
+// ==========================================
+
+export const unblockUser = async (
+  req,
+  res
+) => {
+  try {
+    const {
+      userId,
+    } = req.params;
+
+    if (
+      !isValidObjectId(userId)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid user ID",
+      });
+    }
+
+    const user =
+      await User.findById(
+        req.user.userId
+      );
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "User not found",
+      });
+    }
+
+    user.blockedUsers =
+      (
+        user.blockedUsers || []
+      ).filter(
+        (id) =>
+          id.toString() !==
+          userId.toString()
+      );
+
+    await user.save();
+
+    // ====================================
+    // SOCKET
+    // ====================================
+
+    try {
+      const io = getIO();
+
+      io.to(
+        `user:${req.user.userId}`
+      ).emit(
+        "user_unblocked",
+        {
+          userId,
+        }
+      );
+
+    } catch (error) {
+      console.error(
+        "Socket unblock error:",
+        error.message
+      );
+    }
+
+    return res.status(200).json({
+      success: true,
+
+      message:
+        "User unblocked successfully",
+
+      userId,
+    });
+
+  } catch (error) {
+    console.error(
+      "❌ Unblock user error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Server error",
+    });
+  }
+};
+
+// ==========================================
+// GET BLOCKED USERS
+// ==========================================
+
+export const getBlockedUsers =
+  async (
+    req,
+    res
+  ) => {
+    try {
+      const user =
+        await User.findById(
+          req.user.userId
+        )
+          .populate(
+            "blockedUsers",
+            "name username avatar"
+          )
+          .select(
+            "blockedUsers"
+          );
+
+      return res.status(200).json({
+        success: true,
+
+        blockedUsers:
+          user?.blockedUsers ||
+          [],
+      });
+
+    } catch (error) {
+      console.error(
+        "❌ Get blocked users error:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "Server error",
+      });
+    }
+  };
+
+// ==========================================
 // MARK MESSAGE AS READ
 // ==========================================
 
@@ -555,15 +1284,12 @@ export const markAsRead = async (
   res
 ) => {
   try {
-    const { messageId } =
-      req.params;
-
-    // ======================================
-    // VALIDATE ID
-    // ======================================
+    const {
+      messageId,
+    } = req.params;
 
     if (
-      !mongoose.Types.ObjectId.isValid(
+      !isValidObjectId(
         messageId
       )
     ) {
@@ -573,10 +1299,6 @@ export const markAsRead = async (
           "Invalid message ID",
       });
     }
-
-    // ======================================
-    // FIND MESSAGE
-    // ======================================
 
     const message =
       await Message.findById(
@@ -591,31 +1313,24 @@ export const markAsRead = async (
       });
     }
 
-    // ======================================
-    // CHECK RECEIVER
-    // ======================================
-
     if (
       message.receiver.toString() !==
       req.user.userId.toString()
     ) {
       return res.status(403).json({
         success: false,
-        message: "Access denied",
+        message:
+          "Access denied",
       });
     }
-
-    // ======================================
-    // MARK READ
-    // ======================================
 
     message.read = true;
 
     await message.save();
 
-    // ======================================
+    // ====================================
     // SOCKET
-    // ======================================
+    // ====================================
 
     try {
       const io = getIO();
@@ -633,32 +1348,30 @@ export const markAsRead = async (
         }
       );
 
-    } catch (socketError) {
+    } catch (error) {
       console.error(
-        "❌ Socket read event error:",
-        socketError.message
+        "❌ Socket read error:",
+        error.message
       );
     }
 
-    // ======================================
-    // RESPONSE
-    // ======================================
-
     return res.status(200).json({
       success: true,
+
       message:
         "Message marked as read",
     });
 
   } catch (error) {
     console.error(
-      "❌ Mark as read error:",
+      "❌ Mark read error:",
       error
     );
 
     return res.status(500).json({
       success: false,
-      message: "Server error",
+      message:
+        "Server error",
     });
   }
 };

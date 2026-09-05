@@ -1,120 +1,112 @@
-import mongoose from "mongoose";
+import express from "express";
 
-const messageSchema = new mongoose.Schema(
-  {
-    // ==========================================
-    // MESSAGE CONTENT
-    // ==========================================
+import {
+  sendMessage,
+  getConversation,
+  getMyConversations,
+  markAsRead,
 
-    content: {
-      type: String,
-      trim: true,
-      default: "",
-    },
+  deleteMessage,
+  deleteSelectedMessages,
+  deleteConversation,
 
-    // ==========================================
-    // IMAGE URL
-    // ==========================================
+  blockUser,
+  unblockUser,
+  getBlockedUsers,
+} from "../controllers/messageController.js";
 
-    imageUrl: {
-      type: String,
-      default: null,
-    },
+import { protect } from "../middleware/authMiddleware.js";
+import upload from "../config/multer.js";
 
-    // ==========================================
-    // IMGBB DELETE URL
-    // ==========================================
+const router = express.Router();
 
-    imageDeleteUrl: {
-      type: String,
-      default: null,
-    },
+// ==========================================
+// SEND MESSAGE
+// ==========================================
 
-    // ==========================================
-    // SENDER
-    // ==========================================
-
-    sender: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-
-    // ==========================================
-    // RECEIVER
-    // ==========================================
-
-    receiver: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-
-    // ==========================================
-    // READ STATUS
-    // ==========================================
-
-    read: {
-      type: Boolean,
-      default: false,
-    },
-
-    // ==========================================
-    // PROPOSAL
-    // ==========================================
-
-    proposal: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Proposal",
-      default: null,
-    },
-  },
-
-  {
-    timestamps: true,
-  }
+router.post(
+  "/",
+  protect,
+  upload.single("image"),
+  sendMessage
 );
 
 // ==========================================
-// VALIDATE MESSAGE
-// ==========================================
-//
-// Message kamida:
-// 1. text
-// yoki
-// 2. image
-//
-// bo'lishi kerak.
-//
-// MUHIM:
-// next() ishlatilmaydi.
+// CONVERSATIONS
 // ==========================================
 
-messageSchema.pre(
-  "validate",
-  function () {
-    const hasContent =
-      typeof this.content === "string" &&
-      this.content.trim().length > 0;
+router.get(
+  "/conversations",
+  protect,
+  getMyConversations
+);
 
-    const hasImage =
-      Boolean(this.imageUrl);
-
-    if (!hasContent && !hasImage) {
-      throw new Error(
-        "Message must contain text or image"
-      );
-    }
-  }
+router.get(
+  "/conversation/:userId",
+  protect,
+  getConversation
 );
 
 // ==========================================
-// MODEL
+// DELETE WHOLE CHAT
 // ==========================================
 
-const Message = mongoose.model(
-  "Message",
-  messageSchema
+router.delete(
+  "/conversation/:userId",
+  protect,
+  deleteConversation
 );
 
-export default Message;
+// ==========================================
+// DELETE SELECTED MESSAGES
+// ==========================================
+
+router.delete(
+  "/bulk",
+  protect,
+  deleteSelectedMessages
+);
+
+// ==========================================
+// DELETE ONE OWN MESSAGE
+// ==========================================
+
+router.delete(
+  "/:messageId",
+  protect,
+  deleteMessage
+);
+
+// ==========================================
+// BLOCK
+// ==========================================
+
+router.post(
+  "/block/:userId",
+  protect,
+  blockUser
+);
+
+router.delete(
+  "/block/:userId",
+  protect,
+  unblockUser
+);
+
+router.get(
+  "/blocked",
+  protect,
+  getBlockedUsers
+);
+
+// ==========================================
+// READ
+// ==========================================
+
+router.put(
+  "/:messageId/read",
+  protect,
+  markAsRead
+);
+
+export default router;

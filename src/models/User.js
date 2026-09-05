@@ -32,7 +32,12 @@ const userSchema = new mongoose.Schema(
 
     role: {
       type: String,
-      enum: ["developer", "client", "company", "admin"],
+      enum: [
+        "developer",
+        "client",
+        "company",
+        "admin",
+      ],
       default: "developer",
     },
 
@@ -61,18 +66,31 @@ const userSchema = new mongoose.Schema(
       default: true,
     },
 
-    // LinkedIn profile
     linkedinUrl: {
       type: String,
       default: "",
       trim: true,
     },
+
+    // ==========================================
+    // BLOCKED USERS
+    // ==========================================
+
+    blockedUsers: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
   },
   {
     timestamps: true,
   }
 );
 
-const User = mongoose.model("User", userSchema);
+const User = mongoose.model(
+  "User",
+  userSchema
+);
 
 export default User;

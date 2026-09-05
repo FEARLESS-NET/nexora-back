@@ -5,6 +5,16 @@ import {
   getConversation,
   getMyConversations,
   markAsRead,
+
+  // DELETE
+  deleteMessage,
+  deleteSelectedMessages,
+  deleteConversation,
+
+  // BLOCK
+  blockUser,
+  unblockUser,
+  getBlockedUsers,
 } from "../controllers/messageController.js";
 
 import { protect } from "../middleware/authMiddleware.js";
@@ -15,9 +25,7 @@ const router = express.Router();
 
 // ==========================================
 // SEND MESSAGE
-// Supports:
-// - text
-// - image
+// TEXT + IMAGE
 // ==========================================
 
 router.post(
@@ -38,6 +46,16 @@ router.get(
 );
 
 // ==========================================
+// GET BLOCKED USERS
+// ==========================================
+
+router.get(
+  "/blocked",
+  protect,
+  getBlockedUsers
+);
+
+// ==========================================
 // GET CONVERSATION
 // ==========================================
 
@@ -45,6 +63,56 @@ router.get(
   "/conversation/:userId",
   protect,
   getConversation
+);
+
+// ==========================================
+// DELETE ENTIRE CONVERSATION
+// ==========================================
+
+router.delete(
+  "/conversation/:userId",
+  protect,
+  deleteConversation
+);
+
+// ==========================================
+// DELETE SELECTED MESSAGES
+// ==========================================
+
+router.delete(
+  "/selected",
+  protect,
+  deleteSelectedMessages
+);
+
+// ==========================================
+// BLOCK USER
+// ==========================================
+
+router.post(
+  "/block/:userId",
+  protect,
+  blockUser
+);
+
+// ==========================================
+// UNBLOCK USER
+// ==========================================
+
+router.delete(
+  "/block/:userId",
+  protect,
+  unblockUser
+);
+
+// ==========================================
+// DELETE SINGLE MESSAGE
+// ==========================================
+
+router.delete(
+  "/:messageId",
+  protect,
+  deleteMessage
 );
 
 // ==========================================
