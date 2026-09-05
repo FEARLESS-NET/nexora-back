@@ -1,112 +1,69 @@
-import express from "express";
+import mongoose from "mongoose";
 
-import {
-  sendMessage,
-  getConversation,
-  getMyConversations,
-  markAsRead,
+const messageSchema = new mongoose.Schema(
+  {
+    content: {
+      type: String,
+      trim: true,
+      default: "",
+    },
 
-  deleteMessage,
-  deleteSelectedMessages,
-  deleteConversation,
+    imageUrl: {
+      type: String,
+      default: null,
+    },
 
-  blockUser,
-  unblockUser,
-  getBlockedUsers,
-} from "../controllers/messageController.js";
+    imageDeleteUrl: {
+      type: String,
+      default: null,
+    },
 
-import { protect } from "../middleware/authMiddleware.js";
-import upload from "../config/multer.js";
+    sender: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
 
-const router = express.Router();
+    receiver: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
 
-// ==========================================
-// SEND MESSAGE
-// ==========================================
+    read: {
+      type: Boolean,
+      default: false,
+    },
 
-router.post(
-  "/",
-  protect,
-  upload.single("image"),
-  sendMessage
+    proposal: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Proposal",
+      default: null,
+    },
+  },
+  {
+    timestamps: true,
+  }
 );
 
-// ==========================================
-// CONVERSATIONS
-// ==========================================
+// Message text yoki image bo'lishi kerak
+messageSchema.pre("validate", function () {
+  const hasContent =
+    typeof this.content === "string" &&
+    this.content.trim().length > 0;
 
-router.get(
-  "/conversations",
-  protect,
-  getMyConversations
+  const hasImage = Boolean(this.imageUrl);
+
+  if (!hasContent && !hasImage) {
+    throw new Error(
+      "Message must contain text or image"
+    );
+  }
+});
+
+const Message = mongoose.model(
+  "Message",
+  messageSchema
 );
 
-router.get(
-  "/conversation/:userId",
-  protect,
-  getConversation
-);
-
-// ==========================================
-// DELETE WHOLE CHAT
-// ==========================================
-
-router.delete(
-  "/conversation/:userId",
-  protect,
-  deleteConversation
-);
-
-// ==========================================
-// DELETE SELECTED MESSAGES
-// ==========================================
-
-router.delete(
-  "/bulk",
-  protect,
-  deleteSelectedMessages
-);
-
-// ==========================================
-// DELETE ONE OWN MESSAGE
-// ==========================================
-
-router.delete(
-  "/:messageId",
-  protect,
-  deleteMessage
-);
-
-// ==========================================
-// BLOCK
-// ==========================================
-
-router.post(
-  "/block/:userId",
-  protect,
-  blockUser
-);
-
-router.delete(
-  "/block/:userId",
-  protect,
-  unblockUser
-);
-
-router.get(
-  "/blocked",
-  protect,
-  getBlockedUsers
-);
-
-// ==========================================
-// READ
-// ==========================================
-
-router.put(
-  "/:messageId/read",
-  protect,
-  markAsRead
-);
-
-export default router;
+export default Message;
